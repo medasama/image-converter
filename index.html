@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>変換 — Convert Bench</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Convert Bench">
+<meta name="theme-color" content="#1c1b1a">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" href="./icon-196.png" sizes="196x196">
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1c1b1a;
+    --paper:#f2ede2;
+    --paper-dim:#e7e0d1;
+    --amber:#e8a33d;
+    --amber-dim:#c9852a;
+    --teal:#3f6e6e;
+    --line:#3a3835;
+    --ok:#5f9e6b;
+    --err:#c9584a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'IBM Plex Mono', monospace;
+    min-height:100vh;
+    padding:28px 16px 60px;
+  }
+  .wrap{max-width:720px;margin:0 auto;}
+
+  header{margin-bottom:28px;}
+  .eyebrow{
+    font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--amber);margin-bottom:8px;
+  }
+  h1{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:clamp(28px,7vw,38px);
+    margin:0 0 6px;
+    letter-spacing:-.01em;
+  }
+  .sub{color:#b9b3a4;font-size:13px;line-height:1.6;max-width:52ch;}
+
+  .sprocket{
+    display:flex;gap:6px;margin:18px 0 26px;
+  }
+  .sprocket span{
+    width:8px;height:8px;border-radius:1px;background:var(--line);
+  }
+
+  .panel{
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:4px;
+    padding:20px;
+    margin-bottom:16px;
+  }
+  .panel-label{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:12px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:var(--teal);
+    margin-bottom:12px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .panel-label::before{
+    content:'';width:14px;height:1px;background:var(--teal);
+  }
+
+  #dropzone{
+    border:1.5px dashed #8f887a;
+    border-radius:4px;
+    padding:36px 16px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  #dropzone.drag{
+    border-color:var(--amber-dim);
+    background:#ece4d2;
+  }
+  #dropzone .icon{font-size:26px;margin-bottom:10px;display:block;}
+  #dropzone .main{font-size:14px;font-weight:500;margin-bottom:4px;}
+  #dropzone .hint{font-size:11.5px;color:#7a7364;}
+  #fileInput{display:none;}
+
+  .controls{
+    display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end;
+  }
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .field label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#7a7364;}
+  select{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:14px;
+    padding:8px 10px;
+    border:1px solid #c9c0ad;
+    border-radius:3px;
+    background:#fff;
+    color:var(--ink);
+  }
+  input[type=range]{width:150px;accent-color:var(--amber-dim);}
+  .qval{font-size:12px;color:var(--teal);min-width:34px;}
+  .qrow{display:flex;align-items:center;gap:8px;}
+
+  .btn{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:13px;
+    padding:10px 18px;
+    border-radius:3px;
+    border:none;
+    cursor:pointer;
+    background:var(--amber-dim);
+    color:#1c1b1a;
+    transition:filter .15s;
+  }
+  .btn:hover{filter:brightness(1.08);}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn.secondary{
+    background:transparent;
+    border:1px solid var(--ink);
+    color:var(--ink);
+  }
+
+  .note{font-size:11.5px;color:#7a7364;margin-top:10px;line-height:1.6;}
+
+  .list{display:flex;flex-direction:column;gap:1px;background:#d8d0be;border-radius:4px;overflow:hidden;}
+  .row{
+    background:var(--paper);
+    display:flex;align-items:center;gap:12px;
+    padding:12px 14px;
+  }
+  .thumb{
+    width:44px;height:44px;border-radius:3px;object-fit:cover;
+    background:#d8d0be;flex-shrink:0;
+  }
+  .meta{flex:1;min-width:0;}
+  .fname{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .fstat{font-size:11px;color:#7a7364;margin-top:2px;}
+  .fstat.err{color:var(--err);}
+  .fstat.ok{color:var(--ok);}
+  .dlbtn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    padding:6px 10px;
+    border-radius:3px;
+    border:1px solid var(--teal);
+    background:transparent;
+    color:var(--teal);
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .dlbtn:disabled{opacity:.3;cursor:default;}
+  .spin{
+    width:14px;height:14px;border-radius:50%;
+    border:2px solid #c9c0ad;border-top-color:var(--amber-dim);
+    animation:spin .7s linear infinite;flex-shrink:0;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .actions{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;}
+  footer{margin-top:24px;font-size:11px;color:#7a7364;line-height:1.7;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Local / No Upload</div>
+    <h1>Convert Bench</h1>
+    <p class="sub">HEIC(iPhone写真)はもちろん、JPEG・PNG・WebP・GIFも読み込めます。好きな形式(JPEG / PNG / PDF)に変換。処理はすべてこの端末のブラウザ内で完結し、どこにもアップロードされません。</p>
+    <div class="sprocket">
+      <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
+  </header>
+
+  <div class="panel">
+    <div class="panel-label">01 — 出力設定</div>
+    <div class="controls">
+      <div class="field">
+        <label for="fmt">変換先</label>
+        <select id="fmt">
+          <option value="image/jpeg">JPEG</option>
+          <option value="image/png">PNG</option>
+          <option value="application/pdf">PDF</option>
+        </select>
+      </div>
+      <div class="field" id="qualityField">
+        <label for="quality">画質</label>
+        <div class="qrow">
+          <input type="range" id="quality" min="0.3" max="1" step="0.05" value="0.85">
+          <span class="qval" id="qualityVal">85%</span>
+        </div>
+      </div>
+      <div class="field" id="pdfModeField" style="display:none;">
+        <label for="pdfMode">PDFの作り方</label>
+        <select id="pdfMode">
+          <option value="individual">1枚ずつ個別のPDF</option>
+          <option value="merge">全部を1つのPDFにまとめる</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="resizeMax">サイズ上限(長辺)</label>
+        <select id="resizeMax">
+          <option value="none">リサイズしない</option>
+          <option value="800">800px</option>
+          <option value="1200" selected>1200px</option>
+          <option value="1600">1600px</option>
+          <option value="2000">2000px</option>
+        </select>
+      </div>
+    </div>
+    <div class="note" id="pdfNote" style="display:none;">身分証明書など複数枚を1つの提出用ファイルにしたい場合は「まとめる」を選んでください。</div>
+    <div class="note">元画像より長辺が小さい場合は縮小されません。5MB程度の上限があるアップロード先には、1200px前後+画質85%あたりがおすすめです。</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">02 — ファイル投入</div>
+    <div id="dropzone">
+      <span class="icon">⌘</span>
+      <div class="main">ここに画像をドロップ、またはタップして選択</div>
+      <div class="hint">HEIC / HEIF / JPEG / PNG / WebP / GIF、複数ファイル可</div>
+    </div>
+    <input type="file" id="fileInput" accept=".heic,.heif,image/*" multiple>
+  </div>
+
+  <div class="panel" id="resultPanel" style="display:none;">
+    <div class="panel-label">03 — 結果</div>
+    <div class="list" id="list"></div>
+    <div class="actions">
+      <button class="btn" id="downloadAllBtn" disabled>すべてダウンロード</button>
+      <button class="btn secondary" id="clearBtn">クリア</button>
+    </div>
+  </div>
+
+  <footer>
+    変換後もこのタブを閉じるまではブラウザのメモリ内にのみ画像が保持されます。閉じると消えるので、必要な分は先にダウンロードしてください。
+  </footer>
+</div>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const list = document.getElementById('list');
+const resultPanel = document.getElementById('resultPanel');
+const downloadAllBtn = document.getElementById('downloadAllBtn');
+const clearBtn = document.getElementById('clearBtn');
+const fmtSelect = document.getElementById('fmt');
+const qualityInput = document.getElementById('quality');
+const qualityVal = document.getElementById('qualityVal');
+const qualityField = document.getElementById('qualityField');
+const pdfModeField = document.getElementById('pdfModeField');
+const pdfModeSelect = document.getElementById('pdfMode');
+const pdfNote = document.getElementById('pdfNote');
+const resizeSelect = document.getElementById('resizeMax');
+
+function getResizeMax(){
+  const v = resizeSelect.value;
+  return v === 'none' ? null : parseInt(v, 10);
+}
+
+let items = []; // {id, name, status, blobUrl, blob, outName, width, height, jpegDataUrl, previewUrl}
+
+function isPdf(){ return fmtSelect.value === 'application/pdf'; }
+function isMerge(){ return isPdf() && pdfModeSelect.value === 'merge'; }
+function isHeicFile(file){
+  return /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name);
+}
+
+function updateFieldVisibility(){
+  qualityField.style.display = (fmtSelect.value === 'image/jpeg' || isPdf()) ? 'flex' : 'none';
+  pdfModeField.style.display = isPdf() ? 'flex' : 'none';
+  pdfNote.style.display = isPdf() ? 'block' : 'none';
+  downloadAllBtn.textContent = isMerge() ? 'PDFにまとめてダウンロード' : 'すべてダウンロード';
+  list.querySelectorAll('.dlbtn').forEach(b => { b.style.display = isMerge() ? 'none' : 'inline-block'; });
+}
+fmtSelect.addEventListener('change', updateFieldVisibility);
+pdfModeSelect.addEventListener('change', updateFieldVisibility);
+updateFieldVisibility();
+
+qualityInput.addEventListener('input', () => {
+  qualityVal.textContent = Math.round(qualityInput.value * 100) + '%';
+});
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+function extFor(mime){
+  if (mime === 'image/png') return 'png';
+  if (mime === 'application/pdf') return 'pdf';
+  return 'jpg';
+}
+
+function handleFiles(fileList){
+  const files = Array.from(fileList).filter(f =>
+    /^image\//.test(f.type) || isHeicFile(f)
+  );
+  if (files.length === 0) return;
+
+  resultPanel.style.display = 'block';
+  downloadAllBtn.disabled = true;
+
+  files.forEach(file => {
+    const id = Math.random().toString(36).slice(2);
+    const row = { id, name: file.name, status: 'pending' };
+    items.push(row);
+    renderRow(row);
+    convertOne(file, row);
+  });
+}
+
+function renderRow(row){
+  let el = document.getElementById('row-' + row.id);
+  if (!el){
+    el = document.createElement('div');
+    el.className = 'row';
+    el.id = 'row-' + row.id;
+    list.appendChild(el);
+  }
+  const statusHtml = row.status === 'pending'
+    ? `<div class="spin"></div>`
+    : `<img class="thumb" src="${row.previewUrl || ''}" onerror="this.style.display='none'">`;
+
+  const fstatText = row.status === 'pending' ? '変換中…'
+    : row.status === 'error' ? 'エラー：' + row.errMsg
+    : `${row.outName} — ${row.sizeKb} KB`;
+
+  const fstatClass = row.status === 'error' ? 'err' : row.status === 'done' ? 'ok' : '';
+  const dlDisplay = isMerge() ? 'none' : 'inline-block';
+
+  el.innerHTML = `
+    ${statusHtml}
+    <div class="meta">
+      <div class="fname">${row.name}</div>
+      <div class="fstat ${fstatClass}">${fstatText}</div>
+    </div>
+    <button class="dlbtn" style="display:${dlDisplay};" ${row.status === 'done' ? '' : 'disabled'} data-id="${row.id}">保存</button>
+  `;
+  const btn = el.querySelector('.dlbtn');
+  if (row.status === 'done'){
+    btn.addEventListener('click', () => downloadRow(row));
+  }
+}
+
+function loadImageEl(url){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+function canvasToBlob(canvas, type, quality){
+  return new Promise(resolve => {
+    canvas.toBlob(blob => resolve(blob), type, quality);
+  });
+}
+
+// Decode any supported input (including HEIC) into a canvas we can re-encode freely.
+async function decodeToCanvas(file){
+  let decodeUrl;
+  let revokeAfter = false;
+
+  if (isHeicFile(file)){
+    const converted = await heic2any({ blob: file, toType: 'image/png' });
+    const pngBlob = Array.isArray(converted) ? converted[0] : converted;
+    decodeUrl = URL.createObjectURL(pngBlob);
+    revokeAfter = true;
+  } else {
+    decodeUrl = URL.createObjectURL(file);
+    revokeAfter = true;
+  }
+
+  const img = await loadImageEl(decodeUrl);
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+
+  if (revokeAfter) URL.revokeObjectURL(decodeUrl);
+  return canvas;
+}
+
+// Downscale a canvas so its longer side is at most maxDim. No-op if already smaller.
+function resizeCanvasIfNeeded(canvas, maxDim){
+  const longSide = Math.max(canvas.width, canvas.height);
+  if (!maxDim || longSide <= maxDim) return canvas;
+
+  const scale = maxDim / longSide;
+  const newW = Math.round(canvas.width * scale);
+  const newH = Math.round(canvas.height * scale);
+
+  const resized = document.createElement('canvas');
+  resized.width = newW;
+  resized.height = newH;
+  const ctx = resized.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, newW, newH);
+  return resized;
+}
+
+function buildPdf(pages){
+  // pages: [{dataUrl, width, height}]
+  const first = pages[0];
+  const { jsPDF } = window.jspdf;
+  const orientation = first.width >= first.height ? 'l' : 'p';
+  const pdf = new jsPDF({ orientation, unit: 'px', format: [first.width, first.height] });
+  pages.forEach((p, idx) => {
+    if (idx > 0){
+      pdf.addPage([p.width, p.height], p.width >= p.height ? 'l' : 'p');
+    }
+    pdf.addImage(p.dataUrl, 'JPEG', 0, 0, p.width, p.height);
+  });
+  return pdf;
+}
+
+async function convertOne(file, row){
+  try {
+    const targetType = fmtSelect.value;
+    const quality = parseFloat(qualityInput.value);
+
+    let canvas = await decodeToCanvas(file);
+    canvas = resizeCanvasIfNeeded(canvas, getResizeMax());
+    const base = file.name.replace(/\.[^.]+$/, '');
+    row.width = canvas.width;
+    row.height = canvas.height;
+    row.previewUrl = canvas.toDataURL('image/jpeg', 0.7);
+
+    if (targetType === 'application/pdf'){
+      const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
+      row.jpegDataUrl = jpegDataUrl;
+
+      if (pdfModeSelect.value === 'individual'){
+        const pdf = buildPdf([{ dataUrl: jpegDataUrl, width: canvas.width, height: canvas.height }]);
+        const pdfBlob = pdf.output('blob');
+        row.blob = pdfBlob;
+        row.blobUrl = URL.createObjectURL(pdfBlob);
+        row.outName = `${base}.pdf`;
+        row.sizeKb = Math.round(pdfBlob.size / 1024);
+      } else {
+        row.outName = `${base}.pdf (まとめ待ち)`;
+        row.sizeKb = Math.round(jpegDataUrl.length * 0.75 / 1024);
+      }
+    } else {
+      const blob = await canvasToBlob(canvas, targetType, targetType === 'image/jpeg' ? quality : undefined);
+      const url = URL.createObjectURL(blob);
+      const outName = `${base}.${extFor(targetType)}`;
+
+      row.blob = blob;
+      row.blobUrl = url;
+      row.outName = outName;
+      row.sizeKb = Math.round(blob.size / 1024);
+    }
+
+    row.status = 'done';
+    renderRow(row);
+    checkAllDone();
+  } catch (err) {
+    row.status = 'error';
+    row.errMsg = (err && err.message) ? err.message : '変換に失敗しました';
+    renderRow(row);
+    checkAllDone();
+  }
+}
+
+function checkAllDone(){
+  const anyDone = items.some(i => i.status === 'done');
+  const anyPending = items.some(i => i.status === 'pending');
+  downloadAllBtn.disabled = !anyDone || anyPending;
+}
+
+function downloadRow(row){
+  if (!row.blobUrl) return;
+  const a = document.createElement('a');
+  a.href = row.blobUrl;
+  a.download = row.outName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+downloadAllBtn.addEventListener('click', () => {
+  if (isMerge()){
+    const doneItems = items.filter(i => i.status === 'done' && i.jpegDataUrl);
+    if (doneItems.length === 0) return;
+    const pages = doneItems.map(i => ({ dataUrl: i.jpegDataUrl, width: i.width, height: i.height }));
+    const pdf = buildPdf(pages);
+    pdf.save('converted.pdf');
+  } else {
+    items.filter(i => i.status === 'done').forEach((row, idx) => {
+      setTimeout(() => downloadRow(row), idx * 300);
+    });
+  }
+});
+
+clearBtn.addEventListener('click', () => {
+  items.forEach(i => {
+    if (i.blobUrl) URL.revokeObjectURL(i.blobUrl);
+  });
+  items = [];
+  list.innerHTML = '';
+  resultPanel.style.display = 'none';
+  fileInput.value = '';
+});
+</script>
+</body>
+</html>
